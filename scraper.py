@@ -6,7 +6,8 @@ import datetime
 
 URL = "https://tengrinews.kz"
 NOW = datetime.datetime.now()
-TODAY = NOW.date()
+TODAY = datetime.date.today()
+YESTERDAY = TODAY - datetime.timedelta(days=1)
 
 conn = pymysql.connect(host="localhost", port=3306, user="root", password="sqlpassword")
 cursor = conn.cursor()
@@ -61,6 +62,7 @@ def scrape():
             news_results = news_soup.find('div', class_='tn-content')
 
             title = news_results.find('h1', class_='tn-content-title').text
+            title.replace("'", "''")
             publish_date = news_results.find('ul', class_='tn-data-list').find('time').text
             news_content = news_results.find('div', class_='tn-news-content')
             title_image = ''.join([URL, news_content.find('img')['src']])
@@ -69,7 +71,7 @@ def scrape():
             text = ''
             for p in news_text.find_all('p'):
                 text = ''.join([text, p.get_text().strip() + ' '])
-                text.replace("'", "''")
+            text = text.replace("'", "''")
 
             comment_items = news_soup.find('div', class_='tn-comment-list').contents
             comment_authors, comment_dates, comment_contents = [], [], []
@@ -78,7 +80,6 @@ def scrape():
                 comment_dates.append(comment_item.find('time').text)
                 comment_text = comment_item.find('div', class_='tn-comment-item-content-text').get_text()
                 comment_contents.append(comment_text.replace("'", "''"))
-
         except:
             continue
 
@@ -86,21 +87,17 @@ def scrape():
         if 'сегодня' in publish_date:
             news_date = TODAY.strftime("%Y-%m-%d")
         elif 'вчера' in publish_date:
-            news_date = TODAY
-            news_date.day -= 1
-            news_date.strftime("%Y-%m-%d")
+            news_date = YESTERDAY.strftime("%Y-%m-%d")
 
         news_datetime = news_date + " " + publish_date[-5:] + ":00"
         parse_datetime = NOW.strftime("%Y-%m-%d %H:%M:%S")
 
         sql = "INSERT INTO `items` VALUES (" + str(news_id) + ",'" + link + "','" + title + "','" + text + "','" +\
               news_date + "','" + news_datetime + "','" + parse_datetime + "');"
-        print(sql)
         cursor.execute(sql)
         for author, date, content in zip(comment_authors, comment_dates, comment_contents):
             sql = "INSERT INTO `comments` VALUES (" + str(news_id) + "," + str(comment_id) + ",'" + author + "','" + \
                   date + "','" + content + "','" + parse_datetime + "');"
-            print(sql)
             cursor.execute(sql)
             comment_id += 1
         news_id += 1
